@@ -289,6 +289,3 @@ docker inspect --format '{{json .State.Health}}' <container> | python3 -m json.t
 
 ---
 
-## Лицензия
-
-Укажите лицензию проекта здесь (например, MIT).
