@@ -266,7 +266,7 @@ docker inspect --format '{{json .State.Health}}' <container> | python3 -m json.t
 
 ---
 
-## Зависимости
+## Зависимости !ad
 
 - [gin-gonic/gin](https://github.com/gin-gonic/gin) — веб-фреймворк.
 - [docker/docker](https://github.com/moby/moby) — SDK для управления Docker.
