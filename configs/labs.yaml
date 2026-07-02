@@ -1,0 +1,72 @@
+# CyberRange — конфигурация лабораторий.
+#
+# Два поддерживаемых формата:
+#   1. Один лаб на файл:  configs/dvwa.yaml, configs/nginx.yaml, ...
+#   2. Несколько лабов в ОДНОМ файле, разделённых строкой "---" (как здесь).
+#
+# ВАЖНО: несколько лабов подряд БЕЗ "---" — это невалидный YAML
+# (повторяющиеся ключи name/image/... в одном документе), парсер
+# отклонит такой файл с ошибкой "mapping key already defined".
+#
+# Секция healthcheck необязательна. Команда test выполняется ВНУТРИ
+# контейнера через `/bin/sh -c`, поэтому используйте только то, что
+# есть в образе (curl/wget/bash — проверяйте!).
+
+name: dvwa-lab
+image: vulnerables/web-dvwa
+description: Damn Vulnerable Web Application
+category: security
+difficulty: intermediate
+tags: [security, web, vulnerable]
+ports:
+  - container: "80/tcp"
+    host: "8082"
+env: {}
+volumes: []
+healthcheck:
+  # Образ Debian-based, curl/wget нет, но есть bash — проверяем TCP-порт.
+  test: "bash -c '</dev/tcp/127.0.0.1/80'"
+  interval: 10s
+  timeout: 5s
+  retries: 3
+  start_period: 30s
+---
+name: juice-shop-lab
+image: bkimminich/juice-shop
+description: OWASP Juice Shop
+category: security
+difficulty: advanced
+tags: [security, web, modern]
+ports:
+  - container: "3000/tcp"
+    host: "8083"
+env: {}
+volumes: []
+healthcheck:
+  # Node гарантированно есть в образе — не зависим от наличия wget/curl,
+  # которых в node:*-slim (Debian) может не быть.
+  test: "node -e 'require(\"http\").get(\"http://127.0.0.1:3000/\",r=>process.exit(r.statusCode<400?0:1)).on(\"error\",()=>process.exit(1))'"
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 60s
+---
+name: nginx-lab
+image: nginx:latest
+description: Basic nginx lab
+category: web
+difficulty: beginner
+tags: [web, basic]
+ports:
+  - container: "80/tcp"
+    host: "8081"
+env: {}
+volumes: []
+  # Пример монтирования (пути хоста должны существовать):
+  # - /opt/cyberrange/nginx/html:/usr/share/nginx/html:ro
+healthcheck:
+  test: "bash -c '</dev/tcp/127.0.0.1/80'"
+  interval: 10s
+  timeout: 3s
+  retries: 3
+  start_period: 5s

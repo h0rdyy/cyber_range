@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CyberRange — Администрирование</title>
+<style>
+  :root {
+    --bg: #05100b; --panel: #0a1a12; --panel-line: #163d2a;
+    --phosphor: #3ef08a; --phosphor-dim: #1c7a48; --amber: #ffc857;
+    --alarm: #ff5d5d; --violet: #b98cff; --sky: #6cc7ff;
+    --ink: #c8f7dd; --ink-mute: #5c8a72;
+    --mono: 'SFMono-Regular', ui-monospace, 'JetBrains Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: var(--mono); color: var(--ink); line-height: 1.5;
+    background: radial-gradient(ellipse at 50% -10%, rgba(62,240,138,0.08), transparent 55%), var(--bg);
+    background-attachment: fixed; min-height: 100vh;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 100;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0 1px, transparent 1px 3px);
+    mix-blend-mode: multiply; opacity: .5;
+  }
+  a { color: var(--phosphor); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header { border-bottom: 1px solid var(--panel-line); background: linear-gradient(180deg, rgba(10,26,18,.95), rgba(5,16,11,.7)); position: sticky; top: 0; z-index: 50; backdrop-filter: blur(6px); }
+  .bar { max-width: 1160px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand .glyph { color: var(--phosphor); font-weight: 700; letter-spacing: 1px; }
+  .brand .glyph::before { content: "▚ "; color: var(--phosphor-dim); }
+  .brand small { color: var(--ink-mute); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+  .lnk { border: 1px solid var(--panel-line); padding: 6px 12px; border-radius: 4px; color: var(--ink); font-size: 12px; letter-spacing: 1px; }
+  .lnk:hover { border-color: var(--phosphor-dim); text-decoration: none; }
+
+  main { max-width: 1160px; margin: 0 auto; padding: 24px 20px 64px; }
+  .section-label { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--ink-mute); margin: 26px 0 14px; display: flex; align-items: center; gap: 10px; }
+  .section-label:first-child { margin-top: 4px; }
+  .section-label::after { content: ""; flex: 1; height: 1px; background: var(--panel-line); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .stat { border: 1px solid var(--panel-line); border-radius: 8px; background: var(--panel); padding: 14px 16px; }
+  .stat .k { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-mute); }
+  .stat .v { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .track { height: 6px; border-radius: 3px; background: rgba(255,255,255,.05); overflow: hidden; margin-top: 8px; }
+  .fill { height: 100%; width: 0; transition: width .5s ease; border-radius: 3px; }
+  .fill.hot { background: linear-gradient(90deg, #a33, var(--alarm)) !important; }
+  .c-cpu { color: var(--phosphor); } .fill.c-cpu { background: linear-gradient(90deg, var(--phosphor-dim), var(--phosphor)); }
+  .c-ram { color: var(--amber); }    .fill.c-ram { background: linear-gradient(90deg, #9a6b12, var(--amber)); }
+  .c-run { color: var(--phosphor); } .c-labs { color: var(--sky); } .c-starts { color: var(--violet); }
+  .c-ok { color: var(--phosphor); }  .c-fail { color: var(--alarm); }
+  .stat .sub { font-size: 12px; color: var(--ink-mute); margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+  .panel { border: 1px solid var(--panel-line); border-radius: 8px; background: var(--panel); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 11px 16px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,.04); }
+  th { color: var(--ink-mute); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td .img { color: var(--ink-mute); font-size: 12px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .badge.running .dot { background: var(--phosphor); box-shadow: 0 0 6px var(--phosphor); }
+  .badge.stopped .dot { background: var(--alarm); }
+  .badge.not_found .dot { background: var(--ink-mute); }
+  .health { font-size: 11px; color: var(--ink-mute); }
+  .health.healthy { color: var(--phosphor); } .health.unhealthy { color: var(--alarm); } .health.starting { color: var(--amber); }
+
+  button { font-family: var(--mono); cursor: pointer; border-radius: 5px; font-size: 12px; letter-spacing: .5px; padding: 6px 13px; border: 1px solid transparent; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .btn-start { background: transparent; border-color: var(--phosphor-dim); color: var(--phosphor); }
+  .btn-start:hover:not(:disabled) { background: rgba(62,240,138,.1); }
+  .btn-stop { background: transparent; border-color: #6b2020; color: var(--alarm); }
+  .btn-stop:hover:not(:disabled) { background: rgba(255,93,93,.1); }
+
+  .log { border: 1px solid var(--panel-line); border-radius: 8px; background: var(--panel); padding: 8px; max-height: 300px; overflow-y: auto; }
+  .log-note { font-size: 11px; color: var(--ink-mute); padding: 4px 8px 10px; }
+  .entry { padding: 7px 12px; border-left: 2px solid var(--sky); margin-bottom: 5px; font-size: 12px; border-radius: 0 5px 5px 0; background: rgba(255,255,255,.02); }
+  .entry.error { border-left-color: var(--alarm); }
+  .entry.success { border-left-color: var(--phosphor); }
+  .entry .ts { color: var(--ink-mute); margin-right: 8px; }
+  .muted { color: var(--ink-mute); text-align: center; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand"><span class="glyph">CYBERRANGE</span><small>администрирование</small></div>
+    <a class="lnk" href="/">← Стенд оператора</a>
+  </div>
+</header>
+
+<main>
+  <div class="section-label">Системные метрики</div>
+  <div class="stats">
+    <div class="stat">
+      <div class="k">CPU</div><div class="v c-cpu" id="cpu-val">—</div>
+      <div class="track"><div class="fill c-cpu" id="cpu-bar"></div></div>
+    </div>
+    <div class="stat">
+      <div class="k">RAM</div><div class="v c-ram" id="ram-val">—</div>
+      <div class="track"><div class="fill c-ram" id="ram-bar"></div></div>
+      <div class="sub" id="ram-detail">—</div>
+    </div>
+    <div class="stat"><div class="k">Активных стендов</div><div class="v c-run" id="running">0</div></div>
+  </div>
+
+  <div class="section-label">Статистика запусков</div>
+  <div class="stats">
+    <div class="stat"><div class="k">Лабов в конфиге</div><div class="v c-labs" id="total-labs">0</div></div>
+    <div class="stat"><div class="k">Всего запусков</div><div class="v c-starts" id="total-starts">0</div></div>
+    <div class="stat"><div class="k">Успешных</div><div class="v c-ok" id="total-ok">0</div></div>
+    <div class="stat"><div class="k">Ошибок</div><div class="v c-fail" id="total-fail">0</div></div>
+  </div>
+
+  <div class="section-label">Контейнеры</div>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Лаборатория</th><th>Образ</th><th>Статус</th><th>Здоровье</th><th>Порт</th><th>IP</th><th></th></tr></thead>
+      <tbody id="tbody"><tr><td colspan="7" class="muted">Загрузка…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="section-label">Журнал действий</div>
+  <div class="log">
+    <div class="log-note">Журнал ведётся в этой вкладке и очищается при перезагрузке страницы.</div>
+    <div id="log"><div class="muted">Пусто</div></div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+let allLabs = [];
+const busy = new Set();
+const logs = [];
+
+function addLog(msg, type) {
+  logs.unshift({ msg, type: type || "", ts: new Date().toLocaleTimeString() });
+  if (logs.length > 60) logs.pop();
+  const box = document.getElementById("log");
+  box.innerHTML = logs.length
+    ? logs.map(e => `<div class="entry ${e.type}"><span class="ts">[${esc(e.ts)}]</span>${esc(e.msg)}</div>`).join("")
+    : '<div class="muted">Пусто</div>';
+}
+
+async function getJSON(url, opts) {
+  const res = await fetch(url, opts);
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  return { ok: res.ok, data };
+}
+
+// три эндпоинта тянем независимо: падение одного не гасит остальные
+async function updateAll() {
+  const [status, labs, stats] = await Promise.all([
+    getJSON("/api/status"),
+    getJSON("/api/labs"),
+    getJSON("/api/admin/stats"),
+  ]);
+
+  if (labs.ok && Array.isArray(labs.data)) allLabs = labs.data;
+
+  if (status.ok) {
+    const sys = status.data.system || {};
+    setGauge("cpu", Number(sys.cpu || 0));
+    setGauge("ram", Number(sys.ram || 0));
+    document.getElementById("ram-detail").textContent =
+      `${sys.ram_used_mb ?? "—"} MB / ${sys.ram_total_mb ?? "—"} MB`;
+
+    const byLab = {};
+    (status.data.containers || []).forEach(c => { byLab[c.lab_name] = c; });
+    renderTable(byLab);
+    document.getElementById("running").textContent =
+      (status.data.containers || []).filter(c => c.status === "running").length;
+  } else {
+    addLog("Не удалось получить статус стенда", "error");
+  }
+
+  if (stats.ok) renderStats(stats.data);
+}
+
+function setGauge(kind, pct) {
+  pct = Math.max(0, Math.min(100, pct));
+  document.getElementById(kind + "-val").textContent = pct.toFixed(1) + "%";
+  const bar = document.getElementById(kind + "-bar");
+  bar.style.width = pct + "%";
+  bar.classList.toggle("hot", pct >= 85);
+}
+
+function renderTable(byLab) {
+  const tb = document.getElementById("tbody");
+  if (!allLabs.length) { tb.innerHTML = '<tr><td colspan="7" class="muted">Нет лабораторий</td></tr>'; return; }
+  tb.innerHTML = "";
+  for (const lab of allLabs) {
+    const st = byLab[lab.name] || { status: "not_found" };
+    const status = st.status || "not_found";
+    const label = { running: "работает", stopped: "остановлен", not_found: "нет" }[status] || status;
+    const isBusy = busy.has(lab.name);
+
+    const tr = document.createElement("tr");
+    const health = (status === "running" && st.health)
+      ? `<span class="health ${esc(st.health)}">◊ ${esc(st.health)}</span>` : "—";
+    const actBtn = status === "running"
+      ? `<button class="btn-stop" data-act="stop" data-name="${esc(lab.name)}" ${isBusy ? "disabled" : ""}>Стоп</button>`
+      : `<button class="btn-start" data-act="start" data-name="${esc(lab.name)}" ${isBusy ? "disabled" : ""}>${isBusy ? "…" : "Старт"}</button>`;
+
+    tr.innerHTML =
+      `<td><strong>${esc(lab.name)}</strong></td>` +
+      `<td class="img">${esc(lab.image)}</td>` +
+      `<td><span class="badge ${status}"><span class="dot"></span>${esc(label)}</span></td>` +
+      `<td>${health}</td>` +
+      `<td>${esc(st.port || "—")}</td>` +
+      `<td>${esc(st.ip || "—")}</td>` +
+      `<td>${actBtn}</td>`;
+    tb.appendChild(tr);
+  }
+}
+
+function renderStats(data) {
+  document.getElementById("total-labs").textContent = allLabs.length;
+  const labs = data.labs || {};
+  let starts = 0, ok = 0, fail = 0;
+  Object.values(labs).forEach(s => {
+    starts += s.total_starts || 0;
+    ok += s.success_count || 0;
+    fail += s.failure_count || 0;
+  });
+  document.getElementById("total-starts").textContent = starts;
+  document.getElementById("total-ok").textContent = ok;
+  document.getElementById("total-fail").textContent = fail;
+}
+
+document.getElementById("tbody").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-act]");
+  if (btn) action(btn.dataset.name, btn.dataset.act);
+});
+
+async function action(name, act) {
+  if (busy.has(name)) return;
+  busy.add(name);
+  updateAll();
+  addLog(`${act === "start" ? "Запуск" : "Остановка"}: ${name}`, "");
+
+  const { ok, data } = await getJSON(`/api/lab/${encodeURIComponent(name)}/${act}`, { method: "POST" });
+  addLog(ok ? (data.message || "Готово") : (data.error || "Ошибка"), ok ? "success" : "error");
+
+  busy.delete(name);
+  updateAll();
+}
+
+updateAll();
+setInterval(updateAll, 3000);
+</script>
+</body>
+</html> 

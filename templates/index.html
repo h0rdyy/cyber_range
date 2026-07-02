@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CyberRange — Стенд</title>
+<style>
+  :root {
+    --bg: #05100b;
+    --panel: #0a1a12;
+    --panel-line: #163d2a;
+    --grid: rgba(46,160,102,0.08);
+    --phosphor: #3ef08a;
+    --phosphor-dim: #1c7a48;
+    --amber: #ffc857;
+    --alarm: #ff5d5d;
+    --ink: #c8f7dd;
+    --ink-mute: #5c8a72;
+    --mono: 'SFMono-Regular', ui-monospace, 'JetBrains Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--mono);
+    color: var(--ink);
+    background:
+      radial-gradient(ellipse at 50% -10%, rgba(62,240,138,0.10), transparent 55%),
+      var(--bg);
+    background-attachment: fixed;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+  /* лёгкая CRT-развёртка, отключается при prefers-reduced-motion */
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 100;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0 1px, transparent 1px 3px);
+    mix-blend-mode: multiply; opacity: 0.5;
+  }
+  a { color: var(--phosphor); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header {
+    border-bottom: 1px solid var(--panel-line);
+    background: linear-gradient(180deg, rgba(10,26,18,0.95), rgba(5,16,11,0.7));
+    position: sticky; top: 0; z-index: 50; backdrop-filter: blur(6px);
+  }
+  .bar { max-width: 1080px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand .glyph { color: var(--phosphor); font-weight: 700; letter-spacing: 1px; }
+  .brand .glyph::before { content: "▚ "; color: var(--phosphor-dim); }
+  .brand small { color: var(--ink-mute); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+  .lnk { border: 1px solid var(--panel-line); padding: 6px 12px; border-radius: 4px; color: var(--ink); font-size: 12px; letter-spacing: 1px; }
+  .lnk:hover { border-color: var(--phosphor-dim); text-decoration: none; }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 64px; }
+
+  /* ── Осциллограф-панель: пульс стенда ── */
+  .scope {
+    border: 1px solid var(--panel-line); border-radius: 8px; background: var(--panel);
+    padding: 16px 18px; margin-bottom: 22px; position: relative; overflow: hidden;
+  }
+  .scope-grid { position: absolute; inset: 0;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 26px 26px; }
+  .scope-head { position: relative; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .scope-head .eyebrow { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--ink-mute); }
+  .scope-head .reading { font-size: 12px; color: var(--phosphor); letter-spacing: 1px; }
+  #ekg { display: block; width: 100%; height: 60px; position: relative; }
+
+  /* ── Метрики ── */
+  .gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 22px; }
+  .gauge { border: 1px solid var(--panel-line); border-radius: 8px; background: var(--panel); padding: 14px 16px; }
+  .gauge .k { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-mute); }
+  .gauge .v { font-size: 2.1rem; font-weight: 700; margin: 2px 0 8px; font-variant-numeric: tabular-nums; }
+  .gauge .v.cpu { color: var(--phosphor); }
+  .gauge .v.ram { color: var(--amber); }
+  .track { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.05); overflow: hidden; }
+  .fill { height: 100%; width: 0; transition: width .5s ease; border-radius: 3px; }
+  .fill.cpu { background: linear-gradient(90deg, var(--phosphor-dim), var(--phosphor)); }
+  .fill.ram { background: linear-gradient(90deg, #9a6b12, var(--amber)); }
+  .fill.hot { background: linear-gradient(90deg, #a33, var(--alarm)) !important; }
+  .gauge .sub { font-size: 12px; color: var(--ink-mute); margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+  .section-label { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--ink-mute); margin: 4px 0 14px; display: flex; align-items: center; gap: 10px; }
+  .section-label::after { content: ""; flex: 1; height: 1px; background: var(--panel-line); }
+
+  /* ── Карточки лабов ── */
+  .labs { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  .lab { border: 1px solid var(--panel-line); border-left-width: 3px; border-radius: 8px; background: var(--panel); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .lab.running  { border-left-color: var(--phosphor); }
+  .lab.stopped  { border-left-color: var(--alarm); }
+  .lab.not_found{ border-left-color: var(--ink-mute); }
+  .lab-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .lab-name { font-size: 15px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .dot.running { background: var(--phosphor); box-shadow: 0 0 8px var(--phosphor); animation: blink 1.8s infinite; }
+  .dot.stopped { background: var(--alarm); }
+  .dot.not_found { background: var(--ink-mute); }
+  @keyframes blink { 50% { opacity: .35; } }
+  .lab-desc { font-size: 13px; color: var(--ink-mute); }
+  .diff { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; border: 1px solid transparent; white-space: nowrap; }
+  .diff.beginner    { color: var(--phosphor); border-color: var(--phosphor-dim); }
+  .diff.intermediate{ color: var(--amber); border-color: #6b4e12; }
+  .diff.advanced    { color: var(--alarm); border-color: #6b2020; }
+  .meta { font-size: 12px; color: var(--ink-mute); display: flex; flex-wrap: wrap; gap: 12px; font-variant-numeric: tabular-nums; }
+  .meta .health.healthy   { color: var(--phosphor); }
+  .meta .health.unhealthy { color: var(--alarm); }
+  .meta .health.starting  { color: var(--amber); }
+  .actions { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+  button { font-family: var(--mono); cursor: pointer; border-radius: 5px; font-size: 13px; letter-spacing: .5px; padding: 8px 16px; border: 1px solid transparent; transition: transform .12s, background .2s; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .5; cursor: wait; }
+  .btn-launch { background: var(--phosphor); color: #04160c; font-weight: 700; }
+  .btn-launch:hover { background: #6bff9f; }
+  .btn-stop { background: transparent; border-color: #6b2020; color: var(--alarm); }
+  .btn-stop:hover { background: rgba(255,93,93,0.1); }
+  .open-link { font-size: 13px; }
+
+  .empty { grid-column: 1/-1; text-align: center; color: var(--ink-mute); padding: 40px 0; }
+
+  /* ── Тосты ── */
+  #toasts { position: fixed; top: 74px; right: 16px; z-index: 200; display: flex; flex-direction: column; gap: 8px; max-width: 340px; }
+  .toast { padding: 11px 15px; border-radius: 6px; font-size: 13px; border: 1px solid; animation: slide .25s ease; background: var(--panel); }
+  .toast.info    { border-color: var(--panel-line); color: var(--ink); }
+  .toast.success { border-color: var(--phosphor-dim); color: var(--phosphor); }
+  .toast.error   { border-color: #6b2020; color: var(--alarm); }
+  @keyframes slide { from { transform: translateX(20px); opacity: 0; } }
+
+  @media (max-width: 560px) { .gauges { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) {
+    body::after { display: none; }
+    .dot.running { animation: none; }
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">
+      <span class="glyph">CYBERRANGE</span>
+      <small>стенд оператора</small>
+    </div>
+    <a class="lnk" href="/admin">Панель администратора →</a>
+  </div>
+</header>
+
+<div id="toasts"></div>
+
+<main>
+  <!-- Подпись дашборда: живой пульс стенда -->
+  <section class="scope" aria-label="Пульс стенда">
+    <div class="scope-grid"></div>
+    <div class="scope-head">
+      <span class="eyebrow">Пульс стенда</span>
+      <span class="reading" id="scope-reading">— активных · —</span>
+    </div>
+    <canvas id="ekg" width="1040" height="60"></canvas>
+  </section>
+
+  <div class="gauges">
+    <div class="gauge">
+      <div class="k">Загрузка CPU</div>
+      <div class="v cpu" id="cpu-val">0%</div>
+      <div class="track"><div class="fill cpu" id="cpu-bar"></div></div>
+    </div>
+    <div class="gauge">
+      <div class="k">Память RAM</div>
+      <div class="v ram" id="ram-val">0%</div>
+      <div class="track"><div class="fill ram" id="ram-bar"></div></div>
+      <div class="sub" id="ram-detail">—</div>
+    </div>
+  </div>
+
+  <div class="section-label">Лаборатории</div>
+  <div class="labs" id="labs">
+    <div class="empty">Подключение к стенду…</div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+// ── экранирование: конфиги приходят из YAML, доверять им нельзя ──
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+let allLabs = [];
+const busy = new Set(); // лабы, по которым идёт start/stop — блокируем кнопки
+
+function toast(msg, type) {
+  const box = document.getElementById("toasts");
+  const el = document.createElement("div");
+  el.className = "toast " + type;
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
+async function getJSON(url, opts) {
+  const res = await fetch(url, opts);
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  return { ok: res.ok, data };
+}
+
+async function loadLabs() {
+  const { ok, data } = await getJSON("/api/labs");
+  if (ok && Array.isArray(data)) allLabs = data;
+  await refresh();
+}
+
+async function refresh() {
+  // /api/labs и /api/status тянем независимо — падение одного не роняет второй
+  const { ok, data } = await getJSON("/api/status");
+  if (!ok) { toast("Стенд недоступен", "error"); return; }
+
+  const sys = data.system || {};
+  const cpu = Number(sys.cpu || 0), ram = Number(sys.ram || 0);
+  setGauge("cpu", cpu);
+  setGauge("ram", ram);
+  document.getElementById("ram-detail").textContent =
+    `${sys.ram_used_mb ?? "—"} MB / ${sys.ram_total_mb ?? "—"} MB`;
+
+  const byLab = {};
+  (data.containers || []).forEach(c => { byLab[c.lab_name] = c; });
+  renderLabs(byLab);
+
+  const running = (data.containers || []).filter(c => c.status === "running").length;
+  document.getElementById("scope-reading").textContent =
+    `${running} активных · CPU ${cpu.toFixed(0)}%`;
+  ekg.setLoad(cpu, running);
+}
+
+function setGauge(kind, pct) {
+  pct = Math.max(0, Math.min(100, pct));
+  document.getElementById(kind + "-val").textContent = pct.toFixed(1) + "%";
+  const bar = document.getElementById(kind + "-bar");
+  bar.style.width = pct + "%";
+  bar.classList.toggle("hot", pct >= 85);
+}
+
+function renderLabs(byLab) {
+  const box = document.getElementById("labs");
+  if (!allLabs.length) {
+    box.innerHTML = '<div class="empty">Нет настроенных лабораторий</div>';
+    return;
+  }
+  box.innerHTML = "";
+  for (const lab of allLabs) {
+    const st = byLab[lab.name] || { status: "not_found" };
+    const status = st.status || "not_found";
+    const diff = (lab.difficulty || "beginner").toLowerCase();
+    const port = (lab.ports && lab.ports[0]) ? lab.ports[0].host : "?";
+    const isBusy = busy.has(lab.name);
+
+    const card = document.createElement("div");
+    card.className = "lab " + status;
+
+    let healthHtml = "";
+    if (status === "running" && st.health) {
+      healthHtml = `<span class="health ${esc(st.health)}">◊ ${esc(st.health)}</span>`;
+    }
+
+    let actions;
+    if (status === "running") {
+      const link = st.url
+        ? `<a class="open-link" href="${esc(st.url)}" target="_blank" rel="noopener">Открыть стенд →</a>`
+        : "";
+      actions =
+        `${link}<div class="actions">` +
+        `<button class="btn-stop" data-act="stop" data-name="${esc(lab.name)}" ${isBusy ? "disabled" : ""}>Остановить</button>` +
+        `</div>`;
+    } else {
+      actions =
+        `<div class="actions">` +
+        `<button class="btn-launch" data-act="start" data-name="${esc(lab.name)}" ${isBusy ? "disabled" : ""}>` +
+        `${isBusy ? "Запуск…" : "Запустить"}</button></div>`;
+    }
+
+    card.innerHTML =
+      `<div class="lab-top">` +
+        `<div class="lab-name"><span class="dot ${status}"></span>${esc(lab.name)}</div>` +
+        `<span class="diff ${esc(diff)}">${esc(lab.difficulty || "basic")}</span>` +
+      `</div>` +
+      `<div class="lab-desc">${esc(lab.description)}</div>` +
+      `<div class="meta"><span>порт ${esc(port)}</span>` +
+        (st.ip ? `<span>ip ${esc(st.ip)}</span>` : "") +
+        healthHtml +
+      `</div>` +
+      actions;
+
+    box.appendChild(card);
+  }
+}
+
+// делегирование кликов — обработчики не теряются при перерисовке
+document.getElementById("labs").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-act]");
+  if (btn) labAction(btn.dataset.name, btn.dataset.act);
+});
+
+async function labAction(name, act) {
+  if (busy.has(name)) return;
+  if (act === "stop" && !confirm(`Остановить и удалить «${name}»?`)) return;
+
+  busy.add(name);
+  refresh(); // мгновенно показать "Запуск…" / disabled
+  toast((act === "start" ? "Запуск " : "Остановка ") + name + "…", "info");
+
+  const { ok, data } = await getJSON(`/api/lab/${encodeURIComponent(name)}/${act}`, { method: "POST" });
+  toast(ok ? (data.message || "Готово") : (data.error || "Ошибка"), ok ? "success" : "error");
+
+  busy.delete(name);
+  refresh();
+}
+
+// ── ЭКГ-линия: подпись дашборда ──
+// Пульс учащается с ростом CPU; высота пиков — от числа активных стендов.
+const ekg = (() => {
+  const cv = document.getElementById("ekg");
+  const ctx = cv.getContext("2d");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let W = cv.width, H = cv.height, t = 0, load = 0, active = 0;
+  const trail = new Array(W).fill(H / 2);
+
+  function beat(x, period, amp) {
+    const p = x % period;
+    if (p < period - 8) return 0;
+    const k = p - (period - 8);              // 0..8 — форма QRS-комплекса
+    if (k < 2) return -amp * 0.3 * (k / 2);
+    if (k < 4) return amp * (1 - (k - 2) / 2);
+    if (k < 6) return -amp * ((k - 4) / 2);
+    return -amp * (1 - (k - 6) / 2);
+  }
+
+  function frame() {
+    const speed = reduce ? 0 : 1.6 + load / 40;   // CPU ускоряет развёртку
+    t += speed;
+    const period = Math.max(46, 150 - load);       // выше нагрузка — чаще пульс
+    const amp = 8 + active * 6;
+    trail.shift();
+    trail.push(H / 2 + beat(Math.floor(t), period, amp));
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.beginPath();
+    for (let x = 0; x < W; x++) {
+      x === 0 ? ctx.moveTo(x, trail[x]) : ctx.lineTo(x, trail[x]);
+    }
+    ctx.strokeStyle = load >= 85 ? "#ff5d5d" : "#3ef08a";
+    ctx.lineWidth = 1.6;
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.shadowBlur = 6;
+    ctx.stroke();
+
+    if (!reduce) requestAnimationFrame(frame);
+  }
+
+  function fit() { W = cv.width = cv.clientWidth; trail.length = W; trail.fill(H / 2); }
+  addEventListener("resize", fit); fit();
+  frame(); if (reduce) frame(); // один кадр для reduced-motion
+  return { setLoad(c, a) { load = c; active = a; } };
+})();
+
+loadLabs();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

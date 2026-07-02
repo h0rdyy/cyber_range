@@ -1,0 +1,40 @@
+# ── Собранные бинарники ──
+cyberrange
+cyberrange.exe
+/dist/
+/build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# ── Go: тесты и покрытие ──
+*.test
+*.out
+coverage.*
+
+# ── Go: рабочий каталог модулей (если используется go work) ──
+go.work.sum
+
+# vendor/ — раскомментируйте, только если НЕ коммитите зависимости
+# vendor/
+
+# ── Переменные окружения / секреты ──
+.env
+.env.*
+!.env.example
+
+# ── Логи ──
+*.log
+
+# ── IDE / редакторы ──
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── ОС ──
+.DS_Store
+Thumbs.db
+desktop.ini
